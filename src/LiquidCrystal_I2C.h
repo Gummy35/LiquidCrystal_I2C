@@ -198,6 +198,7 @@ class LiquidCrystal_I2C : public Print
    bool begin(uint8_t columns = LCD_COLUMNS_SIZE, uint8_t rows = LCD_ROWS_SIZE, lcdFontSize = LCD_5x8DOTS, uint8_t sda = SDA, uint8_t scl = SCL, uint32_t speed = LCD_I2C_SPEED, uint32_t stretch = LCD_I2C_ACK_STRETCH);
   #elif defined (ARDUINO_ARCH_ESP32)
    bool begin(uint8_t columns = LCD_COLUMNS_SIZE, uint8_t rows = LCD_ROWS_SIZE, lcdFontSize = LCD_5x8DOTS, int32_t sda = SDA, int32_t scl = SCL, uint32_t speed = LCD_I2C_SPEED, uint32_t stretch = LCD_I2C_ACK_STRETCH);
+   bool begin(uint8_t columns, uint8_t rows, lcdFontSize fontSize, TwoWire* wire);
   #elif defined (ARDUINO_ARCH_STM32)
    bool begin(uint8_t columns = LCD_COLUMNS_SIZE, uint8_t rows = LCD_ROWS_SIZE, lcdFontSize = LCD_5x8DOTS, uint32_t sda = SDA, uint32_t scl = SCL, uint32_t speed = LCD_I2C_SPEED);
   #elif defined (ARDUINO_ARCH_SAMD)
@@ -249,6 +250,9 @@ class LiquidCrystal_I2C : public Print
    pcf8574Address    _pcf8574Address;
    lcdFontSize       _lcdFontSize;
    backlightPolarity _backlightPolarity;
+#if defined (ARDUINO_ARCH_ESP32)
+   TwoWire*          _wire;
+#endif
 
    uint8_t _displayControl = 0; //DO NOT CHANGE!!! default bits value: DB7, DB6, DB5, DB4, DB3, DB2=(D), DB1=(C),   DB0=(B)
    uint8_t _displayMode    = 0; //DO NOT CHANGE!!! default bits value: DB7, DB6, DB5, DB4, DB3, DB2,     DB1=(I/D), DB0=(S)

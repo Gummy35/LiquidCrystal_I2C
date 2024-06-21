@@ -1,5 +1,7 @@
 /***************************************************************************************************/
 /*
+   This is a fork of enjoyneering LiquidCrystal_I2C library, modified to support TwoWire custom instance.
+
    This is an Arduino library for HD44780, S6A0069, KS0066U, NT3881D, LC7985, ST7066, SPLC780,
    WH160xB, AIP31066, GDM200xD, ADM0802A LCD displays
 
@@ -158,11 +160,29 @@ bool LiquidCrystal_I2C::begin(uint8_t columns, uint8_t rows, lcdFontSize fontSiz
   Wire.setClockStretchLimit(stretch);                      //experimental! default 150000usec
 
 #elif defined (ARDUINO_ARCH_ESP32)
+bool LiquidCrystal_I2C::begin(uint8_t columns, uint8_t rows, lcdFontSize fontSize, TwoWire* wire)
+{
+  _wire = wire;
+  _wire->setTimeout(1);                        
+  _wire->beginTransmission(_pcf8574Address);
+  if (_wire->endTransmission() != 0) {return false;}         //safety check, make sure the PCF8574 is connected
+  _writePCF8574(PCF8574_PORTS_LOW);                        //safety, set all PCF8574 pins low
+
+  _lcdColumns  = columns;
+  _lcdRows     = rows;
+  _lcdFontSize = fontSize;
+
+  _initialization();                                       //soft reset LCD & 4-bit mode initialization
+
+  return true;
+}
+
 bool LiquidCrystal_I2C::begin(uint8_t columns, uint8_t rows, lcdFontSize fontSize, int32_t sda, int32_t scl, uint32_t speed, uint32_t stretch) //"int32_t" for Master SDA & SCL, "uint8_t" for Slave SDA & SCL
 {
-  if (Wire.begin(sda, scl, speed) != true) {return false;} //experimental! ESP32 I2C bus speed ???kHz..400kHz, default 100000Hz
+  _wire = &Wire;
+  if (_wire->begin(sda, scl, speed) != true) {return false;} //experimental! ESP32 I2C bus speed ???kHz..400kHz, default 100000Hz
 
-  Wire.setTimeout(stretch / 1000);                         //experimental! default 50msec
+  _wire->setTimeout(stretch / 1000);                         //experimental! default 50msec
 
 #elif defined (ARDUINO_ARCH_STM32)
 bool LiquidCrystal_I2C::begin(uint8_t columns, uint8_t rows, lcdFontSize fontSize, uint32_t sda, uint32_t scl, uint32_t speed) //"uint32_t" for pins only, "uint8_t" calls wrong "setSCL(PinName scl)"
@@ -186,9 +206,15 @@ bool LiquidCrystal_I2C::begin(uint8_t columns, uint8_t rows, lcdFontSize fontSiz
 
   if (_pcf8574PortsMaping == false) {return false;}        //safety check, make sure lcd pins declaration is right
 
+#if defined (ARDUINO_ARCH_ESP32)
+  _wire->beginTransmission(_pcf8574Address);
+
+  if (_wire->endTransmission() != 0) {return false;}         //safety check, make sure the PCF8574 is connected
+#else 
   Wire.beginTransmission(_pcf8574Address);
 
   if (Wire.endTransmission() != 0) {return false;}         //safety check, make sure the PCF8574 is connected
+#endif
 
   _writePCF8574(PCF8574_PORTS_LOW);                        //safety, set all PCF8574 pins low
 
@@ -933,11 +959,19 @@ uint8_t LiquidCrystal_I2C::_portMapping(uint8_t value)
 /**************************************************************************/
 void LiquidCrystal_I2C::_writePCF8574(uint8_t value)
 {
+#if defined (ARDUINO_ARCH_ESP32)
+  _wire->beginTransmission(_pcf8574Address);
+
+  _wire->write(value | _backlightValue);     //mix backlight with data & write it to "wire.h" txBuffer
+
+  _wire->endTransmission(true);              //write data from "wire.h" txBuffer to slave, true=send stop after transmission
+#else
   Wire.beginTransmission(_pcf8574Address);
 
   Wire.write(value | _backlightValue);     //mix backlight with data & write it to "wire.h" txBuffer
 
   Wire.endTransmission(true);              //write data from "wire.h" txBuffer to slave, true=send stop after transmission
+#endif
 }
 
 
@@ -956,10 +990,17 @@ void LiquidCrystal_I2C::_writePCF8574(uint8_t value)
 /**************************************************************************/
 uint8_t LiquidCrystal_I2C::_readPCF8574()
 {
+#if defined (ARDUINO_ARCH_ESP32)
+  _wire->requestFrom((uint8_t)_pcf8574Address, (uint8_t)1, (uint8_t)true); //read 1-byte from slave to "wire.h" rxBuffer, true=send stop after transmission
+
+  if (_wire->available() == 1) {return _wire->read();}                   //check for 1-byte in "wire.h" rxBuffer
+                                return 0x00;
+#else
   Wire.requestFrom((uint8_t)_pcf8574Address, (uint8_t)1, (uint8_t)true); //read 1-byte from slave to "wire.h" rxBuffer, true=send stop after transmission
 
   if (Wire.available() == 1) {return Wire.read();}                       //check for 1-byte in "wire.h" rxBuffer
                               return 0x00;
+#endif
 }
 
 /**************************************************************************/
